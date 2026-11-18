@@ -30,4 +30,8 @@
 
 Lokale opslag en backups zijn niet apart versleuteld. Beveilig het Home Assistant-hostsysteem en eventuele backups. HA-admins hebben toegang tot het hele noodplan. De integratie beschermt niet tegen een gecompromitteerde HA-host, browserextensie of administrator. HA's eigen debuglogging kan websocketberichten loggen wanneer dit door de beheerder wordt ingeschakeld.
 
-De lokale review en statische controles vervangen niet de meegeleverde echte HA-permissietests. Zie `docs/VERIFICATIE.md`. Meld beveiligingsproblemen privé aan de repositorybeheerder zodra de repository gepubliceerd is; zet geen noodplangegevens in een openbaar issue.
+De statische controles vervangen niet de echte HA-permissietests in `tests/ha`; de GitHub Actions-workflow voert beide uit.
+
+## Een probleem melden
+
+Meld een beveiligingsprobleem niet in een openbaar issue, maar privé via het tabblad **Security → Report a vulnerability** van deze repository. Zet nooit echte noodplangegevens in een melding.
