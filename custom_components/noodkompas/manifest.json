@@ -1,0 +1,14 @@
+{
+  "domain": "noodkompas",
+  "name": "Noodkompas",
+  "version": "1.1.0",
+  "config_flow": true,
+  "single_config_entry": true,
+  "documentation": "https://github.com/REPLACE_OWNER/noodkompas",
+  "issue_tracker": "https://github.com/REPLACE_OWNER/noodkompas/issues",
+  "codeowners": [],
+  "dependencies": ["frontend", "http", "panel_custom", "websocket_api"],
+  "iot_class": "local_push",
+  "integration_type": "service",
+  "requirements": []
+}

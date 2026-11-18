@@ -1,0 +1,6 @@
+{
+  "name": "noodkompas-tests",
+  "private": true,
+  "scripts": {"test": "node --test tests/frontend.test.cjs", "check": "node --check custom_components/noodkompas/frontend/panel.js"},
+  "devDependencies": {"jsdom": "^26.1.0"}
+}

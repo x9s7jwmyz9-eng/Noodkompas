@@ -1,0 +1,12 @@
+{
+  "title": "Noodkompas",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Noodkompas instellen",
+        "description": "Maak een lokale 72-uursplanner. Open na installatie Noodkompas in de zijbalk om je huishouden, voorraad en noodplan in te vullen. Alleen beheerders hebben toegang tot dit paneel."
+      }
+    },
+    "abort": {"already_configured": "Noodkompas is al ingesteld."}
+  }
+}
