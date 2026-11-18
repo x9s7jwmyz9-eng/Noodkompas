@@ -2,17 +2,7 @@
 
 Een volledig Nederlandstalige, lokale Home Assistant-integratie voor noodvoorraad en zelfredzaamheid volgens het 72-uursprincipe. Versie 1.2.0.
 
-## Nieuw in 1.1
-
-Een vernieuwd overzicht met een gereedheidsring, gekleurde voortgangsbalken, gerichte volgende stappen en aparte tabbladen voor alle onderdelen. De lay-out past zich aan mobiel en desktop aan en volgt de lichte of donkere modus van Home Assistant. Bij het wisselen van tabbladen blijft onopgeslagen invoer behouden. Ontbreekt een verplicht veld bij opslaan, dan opent automatisch het bijbehorende tabblad.
-
-## Bijwerken vanaf 1.0
-
-1. Pak `noodkompas-installatie-v1.2.0.zip` uit. Dit pakket bevat alleen de map `noodkompas` met de integratiebestanden.
-2. Kopieer die map naar `/config/custom_components/` en overschrijf de bestaande bestanden in `/config/custom_components/noodkompas/`. Verwijder de integratie niet via Apparaten & diensten: dat zou de opgeslagen voorraad verwijderen.
-3. Herstart Home Assistant volledig en ververs de browserpagina. Bij een oude weergave gebruik je Ctrl+F5 of wis je de frontendcache van de Companion-app.
-
-Je bestaande voorraad, instellingen en entity-ID's blijven behouden; de opslagstructuur verandert niet. Teruggaan kan door de bestanden uit versie 1.0.0 terug te zetten en Home Assistant te herstarten.
+Wat er per versie veranderd is, staat in [CHANGELOG.md](CHANGELOG.md).
 
 ## Wat kun je ermee?
 
@@ -33,42 +23,24 @@ Home Assistant **2026.3 of nieuwer**, met de standaard frontend en HTTP/websocke
 
 De integratie zelf maakt geen externe netwerkverbindingen. Een energiesensor uit een andere integratie kan zelf wel afhankelijk zijn van internet. Voor werkelijk offline gebruik selecteer je lokale sensoren of gebruik je handmatige waarden.
 
-## Installeren zonder GitHub of HACS
+## Installeren via de Marktplaats of HACS
 
-1. Pak de ZIP uit.
+1. Open in Home Assistant de **Marktplaats** (of **HACS**).
+2. Kies in het menu rechtsboven **Voeg toe via een GitHub-link** (in HACS: **Aangepaste repositories**, type **Integratie**).
+3. Plak `https://github.com/x9s7jwmyz9-eng/Noodkompas` en voeg hem toe.
+4. Zoek **Noodkompas**, download hem en herstart Home Assistant.
+5. Ga naar **Instellingen → Apparaten & diensten → Integratie toevoegen** en zoek **Noodkompas**.
+6. Open **Noodkompas** in de zijbalk als administrator, vul je gegevens in en klik **Opslaan**.
+
+Nieuwe versies verschijnen vanzelf als update in de Marktplaats of HACS.
+
+## Handmatig installeren
+
+1. Download de code via **Code → Download ZIP** en pak hem uit.
 2. Kopieer de map `custom_components/noodkompas` naar de map `custom_components` in je Home Assistant-configuratiemap. Het resultaat is `/config/custom_components/noodkompas/manifest.json`. Maak `custom_components` aan als die nog niet bestaat.
-3. Herstart Home Assistant.
-4. Ga naar **Instellingen → Apparaten & diensten → Integratie toevoegen** en zoek **Noodkompas**.
-5. Bevestig de installatie en open **Noodkompas** in de zijbalk als administrator.
-6. Vul de gegevens in en klik **Opslaan**. De entitywaarden worden meteen bijgewerkt.
+3. Herstart Home Assistant en voeg de integratie toe zoals in stap 5 en 6 hierboven.
 
-Je kunt de bestanden bijvoorbeeld kopiëren via een lokaal bestandsshare van je HA-configuratiemap. Deze repository installeert niets automatisch op je bestaande HA-installatie.
-
-## Voor het eerst op GitHub zetten
-
-HACS downloadt custom integrations uit een GitHub-repository; een ZIP op je computer heeft geen HACS-repository-URL. Je hoeft geen programmeerkennis te hebben voor de volgende stappen.
-
-1. Maak een account aan op [GitHub](https://github.com/signup).
-2. Maak via [New repository](https://github.com/new) een repository met de naam `noodkompas`. Kies **Public**. Upload alleen de code uit dit pakket, nooit je Home Assistant-configuratie of opgeslagen noodplan.
-3. In `custom_components/noodkompas/manifest.json` vervang je `REPLACE_OWNER` in beide links door je GitHub-gebruikersnaam. Als je een andere repositorynaam hebt gekozen, pas je die ook aan. Vul `codeowners` bijvoorbeeld in als `["@jouwgebruikersnaam"]`.
-4. In de lege repository kies je **uploading an existing file**. Sleep de **inhoud** van de uitgepakte repository naar het uploadvlak: onder andere `custom_components`, `docs`, `tests`, `README.md`, `hacs.json` en de overige projectbestanden. Upload de ZIP niet als enige bestand en zet geen extra `noodkompas`-map om de inhoud heen.
-5. Klik **Commit changes**. Controleer dat `custom_components/noodkompas/manifest.json` direct onder de repository-root staat.
-6. Je repository-URL is nu `https://github.com/jouwgebruikersnaam/noodkompas`.
-
-De documentatie-/issuetrackerlinks staan bewust op `REPLACE_OWNER` zolang er geen echte repository-eigenaar bekend is. Voor handmatige installatie zijn ze niet nodig; vul ze voor publicatie in. Je kunt dit ook lokaal automatiseren met `python tools/prepare_repository.py https://github.com/jouwgebruikersnaam/noodkompas`.
-
-Voor de optionele geautomatiseerde controles moet ook de verborgen map `.github` geüpload zijn. GitHub's browserupload ondersteunt niet altijd verborgen bestanden; installeer daarvoor desgewenst GitHub Desktop en voeg de volledige projectmap toe. De integratie zelf en installatie via HACS hebben de workflow niet nodig.
-
-## Installeren via HACS
-
-1. Publiceer de repository zoals hierboven beschreven.
-2. Open HACS in Home Assistant.
-3. Open het menu rechtsboven en kies **Custom repositories / Aangepaste repositories**.
-4. Plak je GitHub-repository-URL, kies type **Integration** en voeg hem toe.
-5. Zoek **Noodkompas**, download en herstart Home Assistant.
-6. Voeg **Noodkompas** toe via **Instellingen → Apparaten & diensten**.
-
-Een GitHub-release is optioneel: HACS kan de standaardbranch gebruiken. De directorystructuur en metadata volgen de [HACS-integratievereisten](https://www.hacs.xyz/docs/publish/integration/).
+Bijwerken gaat op dezelfde manier: overschrijf de map, herstart en ververs de browser (Ctrl+F5). Verwijder de integratie daarbij **niet** via Apparaten & diensten, want dan worden je opgeslagen gegevens gewist. Opslag van een oudere versie wordt automatisch bijgewerkt.
 
 ## Hoe worden de scores berekend?
 
@@ -83,7 +55,7 @@ Een GitHub-release is optioneel: HACS kan de standaardbranch gebruiken. De direc
 | 72 uur gereed | Alleen ja als **alle vijf** deelscores ongerond 100% zijn. |
 | Zelfredzaamheid | Het minimum van waterdagen, voedseldagen en energiedagen. Checklist en plan zijn apart te beoordelen. |
 
-Volwassenen en kinderen tellen voor deze eerste versie als één persoon. Voor voedsel vul je zelf in hoeveel persoonsdagen één eenheid vertegenwoordigt. Bijvoorbeeld: 0,33 persoonsdag voor een volledige maaltijd bij drie maaltijden per dag. Dit is geen automatische voedingskundige beoordeling. Huisdieren tellen mee voor water; controleer huisdiervoer zelf, bijvoorbeeld met een eigen checklistitem.
+Volwassenen en kinderen tellen als één persoon. Voor voedsel vul je zelf in hoeveel persoonsdagen één eenheid vertegenwoordigt. Bijvoorbeeld: 0,33 persoonsdag voor een volledige maaltijd bij drie maaltijden per dag. Dit is geen automatische voedingskundige beoordeling. Huisdieren tellen mee voor water; controleer huisdiervoer zelf, bijvoorbeeld met een eigen checklistitem.
 
 De datum is de lokale Home Assistant-datum. Producten op hun houdbaarheidsdatum tellen nog mee; pas de voorraad aan als een product eerder niet meer bruikbaar is. Het waarschuwingsvenster is standaard 30 dagen, inclusief vandaag. De waarschuwingssensor telt productregels met voorraad, geen afzonderlijke stuks. Verlopen producten hebben een aparte sensor. Na middernacht wordt de nieuwe datum direct verwerkt. Laat de datum leeg voor producten die niet bederven, zoals zout of suiker; die tellen altijd mee en geven geen waarschuwing.
 
@@ -149,7 +121,7 @@ python -m pip install pytest-homeassistant-custom-component
 python -m pytest -o addopts='' -o asyncio_mode=auto tests/ha -q
 ```
 
-De meegestuurde GitHub Actions-workflow voert beide suites uit zodra de repository op GitHub staat. Zie [docs/VERIFICATIE.md](docs/VERIFICATIE.md) voor wat bij oplevering daadwerkelijk is uitgevoerd. Test deze eerste versie op je eigen HA-installatie voordat je op de uitkomsten vertrouwt.
+De GitHub Actions-workflow voert beide suites uit bij elke push.
 
 ## Problemen oplossen
 
