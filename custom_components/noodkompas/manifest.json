@@ -4,10 +4,17 @@
   "version": "1.2.0",
   "config_flow": true,
   "single_config_entry": true,
-  "documentation": "https://github.com/REPLACE_OWNER/noodkompas",
-  "issue_tracker": "https://github.com/REPLACE_OWNER/noodkompas/issues",
-  "codeowners": [],
-  "dependencies": ["frontend", "http", "panel_custom", "websocket_api"],
+  "documentation": "https://github.com/x9s7jwmyz9-eng/noodkompas",
+  "issue_tracker": "https://github.com/x9s7jwmyz9-eng/noodkompas/issues",
+  "codeowners": [
+    "@x9s7jwmyz9-eng"
+  ],
+  "dependencies": [
+    "frontend",
+    "http",
+    "panel_custom",
+    "websocket_api"
+  ],
   "iot_class": "local_push",
   "integration_type": "service",
   "requirements": []
