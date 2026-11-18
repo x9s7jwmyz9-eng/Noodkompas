@@ -3,24 +3,34 @@
 import logging
 from asyncio import Lock
 from collections.abc import Callable
-from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .model import calculate, defaults, validate
+from .model import SCHEMA_VERSION, calculate, defaults, migrate, validate
+
+
+class RevisionConflict(ValueError):
+    """Iemand anders heeft intussen opgeslagen; de invoer zelf is niet ongeldig."""
 
 
 class NoodkompasCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Persistente admin-data; publieke coordinator-data bevat alleen totalen."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
-        super().__init__(hass, logging.getLogger(__name__), name=DOMAIN, always_update=False)
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry | None = None) -> None:
+        super().__init__(
+            hass,
+            logging.getLogger(__name__),
+            config_entry=entry,
+            name=DOMAIN,
+            always_update=False,
+        )
         self.store = Store(hass, 1, DOMAIN)
         self.snapshot = defaults()
         self.revision = 0
@@ -32,14 +42,19 @@ class NoodkompasCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_load(self) -> None:
         stored = await self.store.async_load()
         if stored is not None:
-            self.snapshot = validate(stored["snapshot"])
+            # Opslag vóór 1.2.0 heeft geen schemaveld en is dus schema 1.
+            schema = stored.get("schema", 1)
+            if type(schema) is not int or schema < 1:
+                raise ValueError("Ongeldige schemaversie")
+            self.snapshot = validate(migrate(stored["snapshot"], schema))
             revision = stored["revision"]
             if type(revision) is not int or revision < 0:
                 raise ValueError("Ongeldige opslagrevisie")
             self.revision = revision
         self._track_sources()
-        self._unsub_timer = async_track_time_interval(
-            self.hass, self._refresh_event, timedelta(minutes=1)
+        # Alleen een nieuwe dag verandert de houdbaarheid; sensoren volgen via events.
+        self._unsub_timer = async_track_time_change(
+            self.hass, self._refresh_event, hour=0, minute=0, second=1
         )
         self.refresh()
 
@@ -75,10 +90,12 @@ class NoodkompasCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self._closing:
                 raise ValueError("Noodkompas wordt ontladen")
             if revision != self.revision:
-                raise ValueError("Gegevens zijn gewijzigd; herlaad het paneel")
+                raise RevisionConflict("Gegevens zijn gewijzigd; herlaad het paneel")
             next_revision = self.revision + 1
             # Publiceer pas nadat de opslag succesvol is afgerond.
-            await self.store.async_save({"snapshot": snapshot, "revision": next_revision})
+            await self.store.async_save(
+                {"schema": SCHEMA_VERSION, "snapshot": snapshot, "revision": next_revision}
+            )
             self.snapshot, self.revision = snapshot, next_revision
             self._track_sources()
             self.refresh()

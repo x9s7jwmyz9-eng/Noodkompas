@@ -188,19 +188,20 @@ form>section{background:var(--card-background-color,#fff);border:1px solid var(-
     section = this.section("Water", "Standaard 3 liter per persoon per dag. Pas de behoefte aan je huishouden en huisdieren aan.");
     this.field(section, "Watervoorraad (liter)", this.data, "water_l", "number");
     this.field(section, "Liter per persoon per dag", this.data.settings, "water_l_person_day", "number", {min:0.1, max:100});
-    section = this.section("Voedsel", "Persoonsdagen per eenheid: hoeveel dagen één persoon met één eenheid kan eten. Voer bijvoorbeeld 0,33 in voor één volledige maaltijd. Verlopen producten tellen niet mee. Huisdiervoer telt niet mee in deze menselijke voedselscore.");
+    section = this.section("Voedsel", "Persoonsdagen per eenheid: hoeveel dagen één persoon met één eenheid kan eten. Voer bijvoorbeeld 0,33 in voor één volledige maaltijd. Verlopen producten tellen niet mee. Laat de datum leeg voor producten die niet bederven, zoals zout of suiker. Huisdiervoer telt niet mee in deze menselijke voedselscore.");
     this.field(section, "Waarschuwen binnen aantal dagen", this.data.settings, "expiry_warning_days", "number", {max:365, step:1});
     this.rows(section, "food", (row, item) => {
       this.field(row, "Product", item, "name", "text", {required:true});
       this.field(row, "Hoeveelheid", item, "quantity", "number");
       this.field(row, "Eenheid (stuk, kg, blik)", item, "unit", "text", {maxLength:30, required:true});
-      this.field(row, "Houdbaar tot", item, "expires", "date", {required:true});
+      this.field(row, "Houdbaar tot (leeg = bederft niet)", item, "expires", "date");
       this.field(row, "Persoonsdagen per eenheid", item, "person_days", "number", {max:10000});
-      const days = Math.floor((Date.parse(item.expires + "T00:00:00") - new Date().setHours(0,0,0,0)) / 86400000);
-      if (item.quantity > 0 && days < 0) element("p", "Verlopen — telt niet mee", row);
-      else if (item.quantity > 0 && days <= this.data.settings.expiry_warning_days) element("p", "Let op: bijna verlopen", row);
-    }, () => ({name:"",quantity:1,unit:"stuk",expires:"",person_days:0}), 500);
-    section = this.section("Energie", "Selecteer een sensor met Wh/kWh beschikbaar opgeslagen energie, of % laadniveau plus capaciteit. Een sensor vervangt de handmatige waarde. Gebruik geen cumulatieve verbruik-/opbrengstsensor. Vermijd dubbel tellen van dezelfde accu. Bij een onbekende sensor telt 0 Wh mee. Een EV is alleen bruikbaar als je apparatuur de energie kan leveren.");
+      const days = item.expires ? Math.floor((Date.parse(item.expires + "T00:00:00") - new Date().setHours(0,0,0,0)) / 86400000) : null;
+      if (item.quantity > 0 && !(item.person_days > 0)) element("p", "Telt niet mee: vul de persoonsdagen per eenheid in", row);
+      else if (item.quantity > 0 && days !== null && days < 0) element("p", "Verlopen — telt niet mee", row);
+      else if (item.quantity > 0 && days !== null && days <= this.data.settings.expiry_warning_days) element("p", "Let op: bijna verlopen", row);
+    }, () => ({name:"",quantity:1,unit:"stuk",expires:"",person_days:1}), 500);
+    section = this.section("Energie", "Selecteer een sensor met Wh/kWh beschikbaar opgeslagen energie, of % laadniveau plus capaciteit. Een sensor vervangt de handmatige waarde. Gebruik geen cumulatieve verbruik-/opbrengstsensor. Vermijd dubbel tellen van dezelfde accu. Bij een onbekende sensor telt 0 Wh mee. Vul bij een thuisaccu, UPS of EV de capaciteit in; de reserve gaat dan van de beschikbare energie af. Een EV is alleen bruikbaar als je apparatuur de energie kan leveren.");
     this.field(section, "Benodigde energie per dag (Wh)", this.data.settings, "energy_wh_day", "number", {min:1});
     this.rows(section, "energy", (row, item) => {
       this.field(row, "Naam", item, "name", "text", {required:true});
@@ -246,14 +247,14 @@ form>section{background:var(--card-background-color,#fff);border:1px solid var(-
       picker.addEventListener("value-changed", () => {fallback.value=item.entity_id;});
       sensorInput.addEventListener("input", () => {fallback.value=item.entity_id;});
       this.field(row, "Volledige capaciteit (Wh; verplicht bij % of EV)", item, "capacity_wh", "number", {max:1000000000});
-      this.field(row, "Minimale EV-reserve (%)", item, "reserve_pct", "number", {max:100});
-    }, () => ({name:"",category:"powerbank",stored_wh:0,entity_id:"",capacity_wh:0,reserve_pct:20}), 100);
+      this.field(row, "Reserve die je niet gebruikt (% van capaciteit)", item, "reserve_pct", "number", {max:100});
+    }, () => ({name:"",category:"powerbank",stored_wh:0,entity_id:"",capacity_wh:0,reserve_pct:0}), 100);
     section = this.section("Noodpakket", "Vink alleen items af die daadwerkelijk beschikbaar zijn. Standaarditems blijven behouden; voeg eigen items toe.");
     this.rows(section, "kit", (row, item) => {
       this.field(row, "Item", item, "name", "text", {required:true, readOnly:standardKit.includes(item.name)});
       this.field(row, "Aanwezig", item, "done", "checkbox");
     }, () => ({name:"",done:false}), 100, item => !standardKit.includes(item.name));
-    section = this.section("Noodplan", "Spreek af waar je elkaar ontmoet en wie je belt. Deze gegevens zijn alleen zichtbaar voor beheerders.");
+    section = this.section("Noodplan", "Spreek af waar je elkaar ontmoet en wie je belt. Een verzamelplaats en minimaal één contactpersoon maken je plan compleet; opmerkingen zijn optioneel. Deze gegevens zijn alleen zichtbaar voor beheerders.");
     this.field(section, "Verzamelplaats", this.data.plan, "meeting_place", "text", {maxLength:500});
     this.field(section, "Belangrijke opmerkingen", this.data.plan, "notes", "textarea", {maxLength:5000});
     const contacts = element("div", undefined, section);
@@ -284,7 +285,7 @@ form>section{background:var(--card-background-color,#fff);border:1px solid var(-
       this.button(this.discardPrompt,"Ja, verwerpen",()=>this.load());
     });
     this.saveButton=this.button(actions,"Opslaan",()=>this.save());this.saveButton.className="primary";
-    this.discardPrompt=null;
+    this.discardPrompt=null;this.conflictPrompt=null;
     this.showTab(this.activeTab);
     element("p","Alleen beheerders hebben toegang. Je gegevens blijven op deze Home Assistant-installatie.",main).className="privacy-note";
   }
@@ -341,7 +342,7 @@ form>section{background:var(--card-background-color,#fff);border:1px solid var(-
     for(const [icon,label,value,hint] of [
       ["shield-home-outline","Zelfredzaamheid",`${format(numeric("self_sufficiency_days"))} dagen`, "Doel: minimaal 3 dagen"],
       ["water-outline","Water voor 72 uur",`${format(numeric("water_required"))} liter`, "Benodigd voor je huishouden"],
-      ["lightning-bolt-outline","Beschikbare energie",energy!==null&&energy>=1000?`${format(energy/1000,2)} kWh`:`${format(energy,0)} Wh`, "Na aftrek van de EV-reserve"]]) {
+      ["lightning-bolt-outline","Beschikbare energie",energy!==null&&energy>=1000?`${format(energy/1000,2)} kWh`:`${format(energy,0)} Wh`, "Na aftrek van de reserve"]]) {
       const card=element("div",undefined,stats);card.className="quick-stat";this.icon(card,icon);
       const content=element("div",undefined,card);element("span",label,content);element("strong",value,content);element("small",hint,content);
     }
@@ -389,6 +390,26 @@ form>section{background:var(--card-background-color,#fff);border:1px solid var(-
     element("p","Het overzicht toont de opgeslagen gegevens. De scores zijn een hulpmiddel, geen garantie op veiligheid.",this.dashboard).className="subtle-note";
   }
 
+  showConflict() {
+    // Een conflict is geen invoerfout: laat de gebruiker kiezen en behoud de invoer.
+    this.status.textContent="Iemand anders heeft intussen opgeslagen. Je eigen invoer staat er nog.";
+    if (this.conflictPrompt) return;
+    const toolbar=this.shadowRoot.querySelector(".toolbar");
+    this.conflictPrompt=element("div",undefined,toolbar);this.conflictPrompt.className="discard-prompt";
+    element("span","Kies welke versie je wilt houden.",this.conflictPrompt);
+    this.button(this.conflictPrompt,"Laatste versie laden",()=>{this.conflictPrompt=null;this.load();});
+    this.button(this.conflictPrompt,"Mijn versie opslaan",async()=>{
+      try {
+        const latest=await this._hass.callWS({type:"noodkompas/get"});
+        this.revision=latest.revision;
+      } catch {
+        this.status.textContent="Laden mislukt. Probeer het opnieuw.";return;
+      }
+      this.conflictPrompt?.remove();this.conflictPrompt=null;
+      await this.save();
+    });
+  }
+
   async save() {
     if (this.busy || !this._hass.user?.is_admin) return;
     const invalid = [...this.form.querySelectorAll("input,textarea,select")].find(input=>!input.checkValidity());
@@ -407,9 +428,10 @@ form>section{background:var(--card-background-color,#fff);border:1px solid var(-
       if (!this._hass.user?.is_admin) return;
       this.revision=result.revision;this.summary=result.summary;this.dirty=false;
       this.render();this.updateDashboard(true);this.status.textContent="Opgeslagen op deze Home Assistant-installatie.";
-    } catch {
+    } catch (error) {
       if (!this._hass.user?.is_admin) return;
-      this.status.textContent="Opslaan mislukt. Controleer verplichte velden, unieke sensoren en datums. Bij gelijktijdige wijzigingen: herlaad het paneel (dit verwerpt je invoer).";
+      if (error?.code === "conflict") this.showConflict();
+      else this.status.textContent="Opslaan mislukt. Controleer verplichte velden, unieke sensoren en datums.";
     } finally {
       this.busy=false;
       if(this.saveButton)this.saveButton.textContent="Opslaan";

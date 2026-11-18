@@ -2,5 +2,5 @@
 
 DOMAIN = "noodkompas"
 PLATFORMS = ["sensor", "binary_sensor"]
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 KIT_ITEMS = ["Zaklamp", "Batterijen", "Radio", "EHBO", "Dekens", "Hygiëne", "Contant geld"]

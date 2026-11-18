@@ -25,7 +25,7 @@ def energy(category="powerbank", **overrides):
         "stored_wh": 1500,
         "capacity_wh": 0,
         "entity_id": "",
-        "reserve_pct": 20,
+        "reserve_pct": 0,
     } | overrides
 
 
@@ -199,3 +199,103 @@ def test_duplicate_kit_names_rejected(model):
     data["kit"].append({"name": "  zaklamp ", "done": True})
     with pytest.raises(ValueError):
         model.validate(data)
+
+
+@pytest.mark.parametrize(
+    "category,stored,reserve,capacity,expected",
+    [
+        ("home_battery", 10000, 10, 10000, 9000),
+        ("ups", 900, 20, 1000, 700),
+        ("powerstation", 5000, 50, 2000, 1000),  # Begrensd op capaciteit.
+        ("powerbank", 1500, 50, 0, 1500),  # Zonder capaciteit geen reserve.
+    ],
+)
+def test_reserve_applies_to_every_source_with_capacity(
+    model, category, stored, reserve, capacity, expected
+):
+    data = model.defaults()
+    data["energy"] = [energy(category, stored_wh=stored, reserve_pct=reserve, capacity_wh=capacity)]
+    assert model.calculate(model.validate(data), TODAY, {})["energy_available"] == expected
+
+
+def test_food_without_expiry_counts_and_never_expires(model):
+    data = model.defaults()
+    data["food"] = [food(expires="", quantity=3)]
+    result = model.calculate(model.validate(data), date(2099, 1, 1), {})
+    assert result["food_days"] == 3
+    assert result["expiring_items"] == 0
+    assert result["expired_items"] == 0
+
+
+def test_plan_complete_without_notes(model):
+    data = model.defaults()
+    data["plan"] = {
+        "meeting_place": "Plein",
+        "contacts": [{"name": "A", "phone": "1"}],
+        "notes": "",
+    }
+    assert model.calculate(model.validate(data), TODAY, {})["plan_score"] == 100
+    data["plan"]["contacts"] = []
+    assert model.calculate(model.validate(data), TODAY, {})["plan_score"] == 50
+
+
+def legacy_v1():
+    """Opslag zoals 1.1.0 die schreef, met een EV en een thuisaccu."""
+    data = model_defaults_v1()
+    data["energy"] = [
+        energy("home_battery", stored_wh=5000, capacity_wh=10000, reserve_pct=20),
+        energy("ev", stored_wh=30000, capacity_wh=60000, reserve_pct=20),
+    ]
+    return data
+
+
+def model_defaults_v1():
+    kit = ["Zaklamp", "Batterijen", "Radio", "EHBO", "Dekens", "Hygiëne", "Contant geld"]
+    return {
+        "household": {"adults": 2, "children": 0, "pets": 1, "pet_water_l_day": 1},
+        "water_l": 300,
+        "food": [food()],
+        "energy": [],
+        "kit": [{"name": name, "done": name == "Radio"} for name in kit],
+        "plan": {"meeting_place": "Plein", "contacts": [], "notes": "x"},
+        "settings": {"water_l_person_day": 3, "energy_wh_day": 500, "expiry_warning_days": 30},
+    }
+
+
+def test_migrate_v1_keeps_content_and_energy_outcome(model):
+    stored = legacy_v1()
+    migrated = model.validate(model.migrate(stored, 1))
+    assert migrated["water_l"] == 300
+    assert next(i for i in migrated["kit"] if i["name"] == "Radio")["done"] is True
+    assert migrated["energy"][0]["reserve_pct"] == 0  # Gold vóór schema 2 niet.
+    assert migrated["energy"][1]["reserve_pct"] == 20  # EV ongewijzigd.
+    # Oude berekening negeerde de reserve van de thuisaccu: uitkomst blijft gelijk.
+    assert model.calculate(migrated, TODAY, {})["energy_available"] == 5000 + 18000
+
+
+def test_migrate_fills_missing_and_drops_unknown_fields(model, monkeypatch):
+    stored = model.defaults()
+    del stored["settings"]["expiry_warning_days"]
+    del stored["food"]
+    stored["plan"]["contacts"] = [{"name": "A", "phone": "1", "extra": True}]
+    stored["future_field"] = {"x": 1}
+    stored["kit"] = [i for i in stored["kit"] if i["name"] != "Radio"]
+    migrated = model.validate(model.migrate(stored, model.SCHEMA_VERSION))
+    assert migrated["settings"]["expiry_warning_days"] == 30
+    assert migrated["food"] == []
+    assert migrated["plan"]["contacts"] == [{"name": "A", "phone": "1"}]
+    assert "future_field" not in migrated
+    assert {"name": "Radio", "done": False} in migrated["kit"]
+
+
+def test_new_standard_kit_item_does_not_break_old_storage(model, monkeypatch):
+    stored = model.defaults()
+    monkeypatch.setattr(model, "KIT_ITEMS", [*model.KIT_ITEMS, "Waterfilter"])
+    migrated = model.validate(model.migrate(stored, model.SCHEMA_VERSION))
+    assert migrated["kit"][-1] == {"name": "Waterfilter", "done": False}
+
+
+@pytest.mark.parametrize("garbage", [None, [], "x", {"household": "x"}, {"kit": [1]}])
+def test_migrate_never_hides_corrupt_data(model, garbage):
+    with pytest.raises(ValueError):
+        model.validate(model.migrate(garbage, 1))

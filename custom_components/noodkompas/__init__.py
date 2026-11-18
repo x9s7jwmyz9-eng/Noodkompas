@@ -1,5 +1,6 @@
 """Noodkompas: lokale Nederlandse noodvoorraad."""
 
+import logging
 from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom, websocket_api
@@ -13,13 +14,17 @@ from .const import DOMAIN, PLATFORMS, VERSION
 from .coordinator import NoodkompasCoordinator
 from .websocket import ws_get, ws_save
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    runtime = NoodkompasCoordinator(hass)
+    runtime = NoodkompasCoordinator(hass, entry)
     try:
         await runtime.async_load()
-    except (ValueError, KeyError, TypeError, OSError, HomeAssistantError):
+    except (ValueError, KeyError, TypeError, AttributeError, OSError, HomeAssistantError):
         runtime.unload()
+        # Geen inhoud loggen: de opslag bevat privégegevens. Het bestand blijft ongewijzigd.
+        _LOGGER.error("Opslag .storage/%s kan niet worden geladen of gemigreerd", DOMAIN)
         raise ConfigEntryNotReady("Lokale opslag kan niet veilig worden geladen") from None
     domain_data = hass.data.setdefault(DOMAIN, {})
     domain_data["coordinator"] = runtime

@@ -1,65 +1,98 @@
 """Publieke totalen, zonder namen of gevoelige attributen."""
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfTime, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import NoodkompasCoordinator
+from .entity import NoodkompasEntity
 
+
+def _desc(
+    key: str,
+    name: str,
+    icon: str,
+    unit: str | None = None,
+    device_class: SensorDeviceClass | None = None,
+    precision: int | None = None,
+) -> SensorEntityDescription:
+    return SensorEntityDescription(
+        key=key,
+        name=name,
+        icon=icon,
+        native_unit_of_measurement=unit,
+        device_class=device_class,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=precision,
+    )
+
+
+# Namen zonder "Noodkompas"-voorvoegsel: HA zet de apparaatnaam ervoor.
 DESCRIPTIONS = [
-    SensorEntityDescription(key=key, name=name, native_unit_of_measurement=unit, icon=icon)
-    for key, name, unit, icon in [
-        ("score", "Noodkompas Score", "%", "mdi:shield-home"),
-        ("water_days", "Noodkompas Water days", "d", "mdi:water"),
-        ("food_days", "Noodkompas Food days", "d", "mdi:food"),
-        ("energy_available", "Noodkompas Energy available", "Wh", "mdi:battery"),
-        ("expiring_items", "Noodkompas Expiring items", None, "mdi:calendar-alert"),
-        ("expired_items", "Noodkompas Verlopen producten", None, "mdi:calendar-remove"),
-        ("water_required", "Noodkompas Benodigd water", "L", "mdi:water"),
-        ("water_score", "Noodkompas Waterscore", "%", "mdi:water"),
-        ("food_score", "Noodkompas Voedselscore", "%", "mdi:food"),
-        ("energy_score", "Noodkompas Energiescore", "%", "mdi:battery"),
-        ("kit_score", "Noodkompas Noodpakketscore", "%", "mdi:bag-personal"),
-        ("plan_score", "Noodkompas Noodplanscore", "%", "mdi:map-marker"),
-        ("self_sufficiency_days", "Noodkompas Zelfredzaamheid", "d", "mdi:shield-home"),
-        ("invalid_energy_sources", "Noodkompas Ongeldige energiebronnen", None, "mdi:alert"),
-    ]
+    _desc("score", "Gereedheid", "mdi:shield-home", PERCENTAGE, precision=0),
+    _desc("water_days", "Waterdagen", "mdi:water", UnitOfTime.DAYS, SensorDeviceClass.DURATION, 1),
+    _desc("food_days", "Voedseldagen", "mdi:food", UnitOfTime.DAYS, SensorDeviceClass.DURATION, 1),
+    _desc(
+        "energy_available",
+        "Beschikbare energie",
+        "mdi:battery",
+        UnitOfEnergy.WATT_HOUR,
+        SensorDeviceClass.ENERGY_STORAGE,
+        0,
+    ),
+    _desc("expiring_items", "Bijna verlopen producten", "mdi:calendar-alert"),
+    _desc("expired_items", "Verlopen producten", "mdi:calendar-remove"),
+    _desc(
+        "water_required",
+        "Benodigd water",
+        "mdi:water",
+        UnitOfVolume.LITERS,
+        SensorDeviceClass.VOLUME_STORAGE,
+        1,
+    ),
+    _desc("water_score", "Waterscore", "mdi:water", PERCENTAGE, precision=0),
+    _desc("food_score", "Voedselscore", "mdi:food", PERCENTAGE, precision=0),
+    _desc("energy_score", "Energiescore", "mdi:battery", PERCENTAGE, precision=0),
+    _desc("kit_score", "Noodpakketscore", "mdi:bag-personal", PERCENTAGE, precision=0),
+    _desc("plan_score", "Noodplanscore", "mdi:map-marker", PERCENTAGE, precision=0),
+    _desc(
+        "self_sufficiency_days",
+        "Zelfredzaamheid",
+        "mdi:shield-home",
+        UnitOfTime.DAYS,
+        SensorDeviceClass.DURATION,
+        1,
+    ),
+    _desc("invalid_energy_sources", "Ongeldige energiebronnen", "mdi:alert"),
 ]
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    async_add_entities(
-        NoodkompasSensor(hass.data[DOMAIN]["coordinator"], desc) for desc in DESCRIPTIONS
-    )
+    coordinator = hass.data[DOMAIN]["coordinator"]
+    async_add_entities(NoodkompasSensor(coordinator, entry, desc) for desc in DESCRIPTIONS)
 
 
-class NoodkompasSensor(CoordinatorEntity[NoodkompasCoordinator], SensorEntity):
+class NoodkompasSensor(NoodkompasEntity, SensorEntity):
     """Standaard HA-coordinatorentity."""
 
     def __init__(
-        self, coordinator: NoodkompasCoordinator, description: SensorEntityDescription
+        self,
+        coordinator: NoodkompasCoordinator,
+        entry: ConfigEntry,
+        description: SensorEntityDescription,
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry, description.key)
         self.entity_description = description
-        self._attr_unique_id = f"{DOMAIN}_{description.key}"
-        # Nederlandse weergavenaam onafhankelijk van stabiele entity-id.
-        names = {
-            "score": "Noodkompas Gereedheid",
-            "water_days": "Noodkompas Waterdagen",
-            "food_days": "Noodkompas Voedseldagen",
-            "energy_available": "Noodkompas Beschikbare energie",
-            "expiring_items": "Noodkompas Bijna verlopen producten",
-        }
-        self._attr_name = names.get(description.key, description.name)
-
-    @property
-    def suggested_object_id(self) -> str:
-        return f"{DOMAIN}_{self.entity_description.key}"
 
     @property
     def native_value(self) -> float | int:

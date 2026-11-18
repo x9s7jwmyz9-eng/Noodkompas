@@ -103,3 +103,16 @@ async def test_config_flow_single_installation(hass):
     assert result["type"] == FlowResultType.CREATE_ENTRY
     second = await hass.config_entries.flow.async_init("noodkompas", context={"source": "user"})
     assert second["type"] == FlowResultType.ABORT
+
+
+async def test_conflict_has_own_error_code(hass):
+    runtime = NoodkompasCoordinator(hass)
+    runtime.store = MagicMock(async_save=AsyncMock())
+    hass.data["noodkompas"] = {"coordinator": runtime}
+    await runtime.async_save(defaults(), 0)
+    connection = MagicMock()
+    connection.user.is_admin = True
+    ws_save(hass, connection, {"id": 1, "snapshot": defaults(), "revision": 0})
+    await hass.async_block_till_done()
+    assert connection.send_error.call_args.args[1] == "conflict"
+    assert runtime.store.async_save.await_count == 1

@@ -8,6 +8,23 @@ from typing import Any
 
 from .const import KIT_ITEMS
 
+SCHEMA_VERSION = 2
+"""Versie van de opgeslagen snapshot; verhoog bij elke wijziging van de velden."""
+
+ITEM_DEFAULTS: dict[str, dict[str, Any]] = {
+    "food": {"name": "", "quantity": 0, "unit": "stuk", "expires": "", "person_days": 0},
+    "energy": {
+        "name": "",
+        "category": "powerbank",
+        "stored_wh": 0,
+        "entity_id": "",
+        "capacity_wh": 0,
+        "reserve_pct": 0,
+    },
+    "kit": {"name": "", "done": False},
+    "contacts": {"name": "", "phone": ""},
+}
+
 
 def defaults() -> dict[str, Any]:
     return {
@@ -19,6 +36,49 @@ def defaults() -> dict[str, Any]:
         "plan": {"meeting_place": "", "contacts": [], "notes": ""},
         "settings": {"water_l_person_day": 3.0, "energy_wh_day": 500.0, "expiry_warning_days": 30},
     }
+
+
+def _fill(value: Any, template: dict[str, Any]) -> Any:
+    """Vul ontbrekende sleutels aan en laat onbekende sleutels vallen."""
+    if not isinstance(value, dict):
+        return value
+    return {key: value.get(key, deepcopy(default)) for key, default in template.items()}
+
+
+def migrate(value: Any, version: int) -> Any:
+    """Breng opgeslagen data van een andere schemaversie naar het huidige schema.
+
+    Alleen de structuur wordt aangevuld; de inhoud blijft staan zodat validate() die
+    nog steeds streng controleert. Niet-dicts gaan ongewijzigd door en falen daar.
+    """
+    if not isinstance(value, dict):
+        return value
+    base = defaults()
+    data = _fill(deepcopy(value), base)
+    for key in ("household", "settings", "plan"):
+        data[key] = _fill(data[key], base[key])
+    for key in ("food", "energy", "kit"):
+        if isinstance(data[key], list):
+            data[key] = [_fill(item, ITEM_DEFAULTS[key]) for item in data[key]]
+    if isinstance(data["plan"], dict) and isinstance(data["plan"]["contacts"], list):
+        data["plan"]["contacts"] = [
+            _fill(item, ITEM_DEFAULTS["contacts"]) for item in data["plan"]["contacts"]
+        ]
+    if isinstance(data["kit"], list):
+        present = {
+            item["name"].strip().casefold()
+            for item in data["kit"]
+            if isinstance(item, dict) and isinstance(item["name"], str)
+        }
+        data["kit"] += [
+            {"name": name, "done": False} for name in KIT_ITEMS if name.casefold() not in present
+        ]
+    if version < 2 and isinstance(data["energy"], list):
+        # Tot schema 2 gold de reserve alleen voor een EV; behoud die uitkomst.
+        for item in data["energy"]:
+            if isinstance(item, dict) and item["category"] != "ev":
+                item["reserve_pct"] = 0
+    return data
 
 
 def _keys(value: Any, expected: set[str]) -> dict:
@@ -66,9 +126,10 @@ def validate(value: Any) -> dict[str, Any]:
         _number(item["quantity"], 0, 1_000_000)
         _number(item["person_days"], 0, 10_000)
         _text(item["expires"], 10)
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", item["expires"]):
-            raise ValueError("Datum moet JJJJ-MM-DD zijn")
-        date.fromisoformat(item["expires"])
+        if item["expires"]:  # Leeg betekent: bederft niet.
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", item["expires"]):
+                raise ValueError("Datum moet JJJJ-MM-DD zijn")
+            date.fromisoformat(item["expires"])
     _list(value["energy"], 100)
     sources = []
     for item in value["energy"]:
@@ -117,11 +178,16 @@ def calculate(
     people = h["adults"] + h["children"]
     water_day = people * s["water_l_person_day"] + h["pets"] * h["pet_water_l_day"]
     water_days = data["water_l"] / water_day
+
+    def days_left(item: dict) -> int | None:
+        """Dagen tot de houdbaarheidsdatum; None als het product niet bederft."""
+        return (date.fromisoformat(item["expires"]) - today).days if item["expires"] else None
+
     food_days = (
         sum(
             i["quantity"] * i["person_days"]
             for i in data["food"]
-            if date.fromisoformat(i["expires"]) >= today
+            if (left := days_left(i)) is None or left >= 0
         )
         / people
     )
@@ -144,33 +210,30 @@ def calculate(
             except (ValueError, TypeError):
                 available = 0
                 invalid_sources += 1
-        if i["category"] == "ev":
-            if i["capacity_wh"] <= 0:
-                available = 0
-            else:
-                available = min(available, i["capacity_wh"])
-                available = max(0, available - i["capacity_wh"] * i["reserve_pct"] / 100)
+        capacity = i["capacity_wh"]
+        if i["category"] == "ev" and capacity <= 0:
+            available = 0  # Zonder capaciteit is de EV-reserve niet te bepalen.
+        elif capacity > 0:
+            # Reserve geldt voor elke bron met bekende capaciteit (ook thuisaccu/UPS).
+            available = min(available, capacity)
+            available = max(0, available - capacity * i["reserve_pct"] / 100)
         energy += available
     energy_days = energy / s["energy_wh_day"]
     kit_score = 100 * sum(i["done"] for i in data["kit"]) / len(data["kit"])
     p = data["plan"]
-    plan_score = (
-        100
-        * sum((bool(p["meeting_place"].strip()), bool(p["contacts"]), bool(p["notes"].strip())))
-        / 3
-    )
+    # Notities zijn optioneel: verzamelplaats en contacten maken het plan compleet.
+    plan_score = 100 * sum((bool(p["meeting_place"].strip()), bool(p["contacts"]))) / 2
     scores = [min(100, days / 3 * 100) for days in (water_days, food_days, energy_days)] + [
         kit_score,
         plan_score,
     ]
-    expiring = sum(
-        i["quantity"] > 0
-        and 0 <= (date.fromisoformat(i["expires"]) - today).days <= s["expiry_warning_days"]
-        for i in data["food"]
-    )
-    expired = sum(
-        i["quantity"] > 0 and date.fromisoformat(i["expires"]) < today for i in data["food"]
-    )
+    expiring = expired = 0
+    for i in data["food"]:
+        left = days_left(i)
+        if i["quantity"] <= 0 or left is None:
+            continue
+        expired += left < 0
+        expiring += 0 <= left <= s["expiry_warning_days"]
     return dict(
         zip(
             ("water_score", "food_score", "energy_score", "kit_score", "plan_score"),

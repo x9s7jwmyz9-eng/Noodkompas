@@ -10,6 +10,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .compat import vol
 from .const import DOMAIN
+from .coordinator import RevisionConflict
 
 
 @websocket_api.websocket_command({"type": "noodkompas/get"})
@@ -58,12 +59,16 @@ async def ws_save(
         return
     try:
         await runtime.async_save(msg["snapshot"], msg["revision"])
+    except RevisionConflict:
+        # Apart van ongeldige invoer, zodat het paneel de invoer niet hoeft te verwerpen.
+        connection.send_error(msg["id"], "conflict", "De gegevens zijn intussen elders opgeslagen.")
+        return
     except ValueError:
         # Geen ingediende inhoud opnemen in logs of foutmeldingen.
         connection.send_error(
             msg["id"],
             "invalid_input",
-            "Ongeldige invoer of verouderde revisie. Herlaad bij een conflict.",
+            "Ongeldige invoer. Controleer de gemarkeerde velden.",
         )
         return
     except (OSError, HomeAssistantError):

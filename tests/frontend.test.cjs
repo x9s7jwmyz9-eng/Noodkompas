@@ -153,3 +153,28 @@ test("verwerpen vereist een tweede bewuste actie",async()=>{
   assert.equal(panel.discardPrompt,null);assert.equal(panel.data.water_l,42);
   dom.window.close();
 });
+test("conflict behoudt invoer en kan alsnog eigen versie opslaan",async()=>{
+  let attempts=0;
+  const saver=async msg=>{attempts++;if(attempts===1)throw {code:"conflict",message:"x"};return {revision:msg.revision+1,summary:{score:10}};};
+  const {dom,panel,calls}=await setup(true,snapshot(),saver);
+  panel.data.water_l=42;panel.markDirty();
+  await panel.save();
+  assert.equal(panel.data.water_l,42);
+  assert.match(panel.status.textContent,/intussen opgeslagen/);
+  assert.ok(panel.conflictPrompt);
+  const mine=[...panel.conflictPrompt.querySelectorAll("button")].find(b=>b.textContent==="Mijn versie opslaan");
+  mine.click();
+  await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(calls.filter(c=>c.type==="noodkompas/save").length,2);
+  assert.equal(calls.at(-1).snapshot.water_l,42);
+  assert.match(panel.status.textContent,/Opgeslagen/);
+  dom.window.close();
+});
+test("product zonder houdbaarheidsdatum mag worden opgeslagen",async()=>{
+  const data=snapshot();data.food=[{name:"Zout",quantity:1,unit:"pak",expires:"",person_days:1}];
+  const {dom,panel,calls}=await setup(true,data);
+  await panel.save();
+  assert.equal(calls[1].type,"noodkompas/save");
+  assert.equal(calls[1].snapshot.food[0].expires,"");
+  dom.window.close();
+});

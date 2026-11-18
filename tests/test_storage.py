@@ -41,10 +41,11 @@ def storage_runtime(model, monkeypatch):
 
     unsubscribe_states, unsubscribe_timer = Mock(), Mock()
     modules = {
+        "homeassistant.config_entries": {"ConfigEntry": object},
         "homeassistant.core": {"HomeAssistant": object, "callback": lambda f: f},
         "homeassistant.helpers.event": {
             "async_track_state_change_event": Mock(return_value=unsubscribe_states),
-            "async_track_time_interval": Mock(return_value=unsubscribe_timer),
+            "async_track_time_change": Mock(return_value=unsubscribe_timer),
         },
         "homeassistant.helpers.storage": {"Store": StoreDouble},
         "homeassistant.helpers.update_coordinator": {"DataUpdateCoordinator": CoordinatorDouble},
@@ -164,5 +165,62 @@ def test_unload_waits_for_active_write_and_rejects_new_writes(model, storage_run
         with pytest.raises(ValueError):
             await runtime.async_save(model.defaults(), 1)
         assert runtime.revision == 1
+
+    asyncio.run(run())
+
+
+def test_legacy_storage_without_schema_is_migrated(model, storage_runtime):
+    async def run():
+        cls, hass, storage, _, _ = storage_runtime
+        legacy = model.defaults()
+        del legacy["settings"]["expiry_warning_days"]
+        legacy["energy"] = [
+            {
+                "name": "Thuisaccu",
+                "category": "home_battery",
+                "stored_wh": 5000,
+                "entity_id": "",
+                "capacity_wh": 10000,
+                "reserve_pct": 20,
+            }
+        ]
+        storage["data"] = {"snapshot": legacy, "revision": 4}
+        runtime = cls(hass)
+        await runtime.async_load()
+        assert runtime.revision == 4
+        assert runtime.snapshot["settings"]["expiry_warning_days"] == 30
+        assert runtime.data["energy_available"] == 5000
+        runtime.store.async_save.assert_not_called()  # Pas bij opslaan herschreven.
+        await runtime.async_save(runtime.snapshot, 4)
+        assert storage["data"]["schema"] == model.SCHEMA_VERSION
+        runtime.unload()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("schema", [0, "2", True, None])
+def test_invalid_schema_version_rejected(model, storage_runtime, schema):
+    async def run():
+        cls, hass, storage, _, _ = storage_runtime
+        storage["data"] = {"schema": schema, "snapshot": model.defaults(), "revision": 0}
+        with pytest.raises(ValueError):
+            await cls(hass).async_load()
+
+    asyncio.run(run())
+
+
+def test_conflict_is_distinct_from_invalid_input(model, storage_runtime):
+    async def run():
+        cls, hass, _, _, _ = storage_runtime
+        module = importlib.import_module("noodkompas_model_test.coordinator")
+        runtime = cls(hass)
+        await runtime.async_save(model.defaults(), 0)
+        with pytest.raises(module.RevisionConflict):
+            await runtime.async_save(model.defaults(), 0)
+        bad = model.defaults()
+        bad["water_l"] = -1
+        with pytest.raises(ValueError) as error:
+            await runtime.async_save(bad, 1)
+        assert not isinstance(error.value, module.RevisionConflict)
 
     asyncio.run(run())

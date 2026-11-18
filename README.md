@@ -1,6 +1,6 @@
 # Noodkompas
 
-Een volledig Nederlandstalige, lokale Home Assistant-integratie voor noodvoorraad en zelfredzaamheid volgens het 72-uursprincipe. Versie 1.1.0.
+Een volledig Nederlandstalige, lokale Home Assistant-integratie voor noodvoorraad en zelfredzaamheid volgens het 72-uursprincipe. Versie 1.2.0.
 
 ## Nieuw in 1.1
 
@@ -8,7 +8,7 @@ Een vernieuwd overzicht met een gereedheidsring, gekleurde voortgangsbalken, ger
 
 ## Bijwerken vanaf 1.0
 
-1. Pak `noodkompas-installatie-v1.1.0.zip` uit. Dit pakket bevat alleen de map `noodkompas` met de integratiebestanden.
+1. Pak `noodkompas-installatie-v1.2.0.zip` uit. Dit pakket bevat alleen de map `noodkompas` met de integratiebestanden.
 2. Kopieer die map naar `/config/custom_components/` en overschrijf de bestaande bestanden in `/config/custom_components/noodkompas/`. Verwijder de integratie niet via Apparaten & diensten: dat zou de opgeslagen voorraad verwijderen.
 3. Herstart Home Assistant volledig en ververs de browserpagina. Bij een oude weergave gebruik je Ctrl+F5 of wis je de frontendcache van de Companion-app.
 
@@ -18,10 +18,10 @@ Je bestaande voorraad, instellingen en entity-ID's blijven behouden; de opslagst
 
 - Huishouden: volwassenen, kinderen en huisdieren.
 - Water: liters voorraad, automatisch benodigd water voor drie dagen en beschikbare dagen.
-- Voedsel: producten, hoeveelheid, eenheid, houdbaarheidsdatum en waarschuwingen.
-- Energie: handmatige Wh/kWh of geselecteerde HA-sensoren; powerbanks, UPS, powerstations, thuisaccu's en EV's met een minimale reserve.
+- Voedsel: producten, hoeveelheid, eenheid, optionele houdbaarheidsdatum en waarschuwingen.
+- Energie: handmatige Wh/kWh of geselecteerde HA-sensoren; powerbanks, UPS, powerstations, thuisaccu's en EV's met een instelbare reserve.
 - Noodpakket: vaste checklist en eigen items.
-- Noodplan: verzamelplaats, contactpersonen en opmerkingen.
+- Noodplan: verzamelplaats, contactpersonen en optionele opmerkingen.
 - Dashboard: vijf deelscores, totaalscore, 72 uur gereed en geschatte zelfredzaamheid.
 - Vijftien standaard Home Assistant-entities voor dashboards en eigen automatiseringen.
 
@@ -75,17 +75,17 @@ Een GitHub-release is optioneel: HACS kan de standaardbranch gebruiken. De direc
 | Onderdeel | Berekening |
 |---|---|
 | Water | Standaard 3 liter × personen per dag, plus ingestelde liters per huisdier. Voorraad gedeeld door dagbehoefte geeft dagen. |
-| Voedsel | Hoeveelheid × persoonsdagen per eenheid, opgeteld en gedeeld door personen. Verlopen producten tellen niet mee. |
+| Voedsel | Hoeveelheid × persoonsdagen per eenheid, opgeteld en gedeeld door personen. Verlopen producten tellen niet mee; producten zonder datum bederven niet. |
 | Energie | Bruikbare Wh gedeeld door de ingestelde dagbehoefte; standaard 500 Wh per dag per huishouden. |
 | Noodpakket | Percentage aanwezige checklistitems; alle zeven standaarditems zijn verplicht en blijven in de checklist. |
-| Noodplan | Verzamelplaats, minimaal één contact en opmerkingen leveren ieder een derde van de score. |
+| Noodplan | Verzamelplaats en minimaal één contact leveren ieder de helft van de score. Opmerkingen zijn optioneel. |
 | Totaal | Gemiddelde van de vijf deelscores; iedere deelscore is maximaal 100%. |
 | 72 uur gereed | Alleen ja als **alle vijf** deelscores ongerond 100% zijn. |
 | Zelfredzaamheid | Het minimum van waterdagen, voedseldagen en energiedagen. Checklist en plan zijn apart te beoordelen. |
 
 Volwassenen en kinderen tellen voor deze eerste versie als één persoon. Voor voedsel vul je zelf in hoeveel persoonsdagen één eenheid vertegenwoordigt. Bijvoorbeeld: 0,33 persoonsdag voor een volledige maaltijd bij drie maaltijden per dag. Dit is geen automatische voedingskundige beoordeling. Huisdieren tellen mee voor water; controleer huisdiervoer zelf, bijvoorbeeld met een eigen checklistitem.
 
-De datum is de lokale Home Assistant-datum. Producten op hun houdbaarheidsdatum tellen nog mee; pas de voorraad aan als een product eerder niet meer bruikbaar is. Het waarschuwingsvenster is standaard 30 dagen, inclusief vandaag. De waarschuwingssensor telt productregels met voorraad, geen afzonderlijke stuks. Verlopen producten hebben een aparte sensor. Een wijziging aan de lokale datum wordt binnen één minuut verwerkt.
+De datum is de lokale Home Assistant-datum. Producten op hun houdbaarheidsdatum tellen nog mee; pas de voorraad aan als een product eerder niet meer bruikbaar is. Het waarschuwingsvenster is standaard 30 dagen, inclusief vandaag. De waarschuwingssensor telt productregels met voorraad, geen afzonderlijke stuks. Verlopen producten hebben een aparte sensor. Na middernacht wordt de nieuwe datum direct verwerkt. Laat de datum leeg voor producten die niet bederven, zoals zout of suiker; die tellen altijd mee en geven geen waarschuwing.
 
 ## Energiesensoren
 
@@ -94,7 +94,8 @@ De datum is de lokale Home Assistant-datum. Producten op hun houdbaarheidsdatum 
 - Een geselecteerde sensor **vervangt** de handmatige energie voor dat item; waarden worden niet bij elkaar opgeteld.
 - `unknown`, `unavailable`, negatieve waarden, niet-eindige waarden, een ongeschikte eenheid of waarden boven 1 miljard Wh leveren 0 Wh en een ongeldige-bronnenwaarschuwing op. Voor kWh geldt het maximum vóór de omrekening als aanvullende invoergrens.
 - Een sensor-ID mag maar één keer geselecteerd worden. De integratie kan niet herkennen dat twee verschillende sensoren dezelfde fysieke accu meten: voorkom zelf dubbel tellen.
-- Bij een EV is capaciteit verplicht voor een bruikbare berekening. De reserve wordt als percentage van de volledige capaciteit afgetrokken, met een minimum van 0 Wh.
+- Bij een EV is capaciteit verplicht voor een bruikbare berekening.
+- Bij elke bron met een ingevulde capaciteit (bijvoorbeeld een thuisaccu of UPS) wordt de energie op die capaciteit begrensd en wordt de reserve als percentage van de volledige capaciteit afgetrokken, met een minimum van 0 Wh. Zonder capaciteit telt de volledige waarde.
 - Een EV-accu wordt alleen als noodenergie beschouwd als je die daadwerkelijk kunt gebruiken, bijvoorbeeld met ondersteunde V2L/V2H-apparatuur. Selecteer anders geen EV.
 
 ## Entities
@@ -154,8 +155,8 @@ De meegestuurde GitHub Actions-workflow voert beide suites uit zodra de reposito
 
 - **Niet in de integratielijst:** controleer het pad en herstart Home Assistant.
 - **Geen sidebaritem:** meld je aan als administrator en herlaad de pagina.
-- **Opslaan geweigerd:** controleer verplichte velden, geldige datums, unieke items/sensoren en limieten. Bij een revisieconflict herlaad je het paneel; dit verwerpt onopgeslagen wijzigingen.
-- **Geen energiescore:** controleer de sensorwaarde, de eenheid, benodigde capaciteit en EV-reserve.
-- **Opslag ongeldig:** de integratie weigert corrupte opslag te overschrijven. Herstel vanuit een backup of verwijder en herinstalleer de integratie als je de gegevens wilt wissen.
+- **Opslaan geweigerd:** controleer verplichte velden, geldige datums, unieke items/sensoren en limieten. Bij een revisieconflict kies je in het paneel tussen de laatste versie laden of je eigen versie alsnog opslaan; je invoer blijft staan tot je kiest.
+- **Geen energiescore:** controleer de sensorwaarde, de eenheid, benodigde capaciteit en reserve.
+- **Opslag ongeldig:** opslag van oudere versies wordt automatisch gemigreerd. Lukt dat niet, dan weigert de integratie de opslag te overschrijven en meldt dit in het logboek (zonder inhoud). Herstel vanuit een backup of verwijder en herinstalleer de integratie als je de gegevens wilt wissen.
 
 Dit is een planningshulpmiddel. De scores meten de ingevulde voorraad en checklist, niet de werkelijke veiligheid, voedingswaarde of technische beschikbaarheid tijdens een noodsituatie.
